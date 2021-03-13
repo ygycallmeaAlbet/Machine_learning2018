@@ -1,0 +1,589 @@
+---
+output:
+  pdf_document: 
+    number_sections: true
+---
+<style type='text/css'>
+
+body{ /* Normal  */
+      font-size: 1px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: 'Times New Roman', Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+
+
+\begin{titlepage}
+
+\center
+\textsc{\LARGE University of Waterloo}\\[5cm]
+{ \huge \bfseries STAT 444}\\[4cm]
+     \textsc{\Large STAT 444 Spring 2019}\\[3cm]
+     
+\emph{Group Gengyao\_Yuan:}\\[0.5cm]
+Gengyao \textsc{Yuan}(20613017)\\[0.5cm]
+Haohan  \textsc{Li}(20610397)
+
+
+\end{titlepage}
+
+\tableofcontents
+
+\newpage
+```{r setup, include=FALSE}
+data = read.csv('data/housing_price.csv')
+library('VIM') # Missing value
+library(gbm)
+library(mgcv)
+```
+
+\section{Executive summary:}
+sample
+
+\newpage
+
+
+
+
+sample
+\newline
+sample
+\section{Itroduction:}
+
+sample
+\section{Data}
+
+```{r}
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+data$KITCHENS[is.na(data$KITCHENS)] <- getmode(data$KITCHENS[!is.na(data$KITCHENS)])
+
+
+
+med_diff_built_remodel <-floor(median(data$YR_RMDL[!is.na(data$YR_RMDL)&!is.na(data$AYB)]- 
+                                data$AYB[!is.na(data$YR_RMDL)&!is.na(data$AYB)] ))
+
+
+# Fill AYB and YR_RMDL
+data$YR_RMDL[is.na(data$YR_RMDL)&!is.na(data$AYB)] <-data$AYB[is.na(data$YR_RMDL)&!is.na(data$AYB)]
+
+
+#Missing Both
+missing_both <- is.na(data$YR_RMDL)&is.na(data$AYB)
+
+data$AYB[missing_both]<-floor(median(data$AYB[!is.na(data$AYB)]))
+
+data$YR_RMDL[missing_both]<-data$AYB[missing_both]- med_diff_built_remodel
+
+
+missing_built_have_remodel <- (!is.na(data$YR_RMDL)&is.na(data$AYB))
+data$AYB[missing_built_have_remodel] <- data$YR_RMDL[missing_built_have_remodel]-med_diff_built_remodel
+
+data$STORIES[is.na(data$STORIES)]<-floor(median(data$STORIES[!is.na(data$STORIES)]))
+```
+
+
+##Outliers / Extreme value
+
+By eyeball the data, we can see there is several outliers
+```{r}
+data[data$YR_RMDL==20,]
+data$YR_RMDL[data$YR_RMDL==20]=data$AYB[data$YR_RMDL==20]+med_diff_built_remodel
+data$AC[data$AC ==0] <- getmode(data$AC[data$AC !=0])
+```
+
+```{r}
+data$STORIES[data$STORIES>=14] <- floor(median(data$STORIES[data$STORIES<14]))
+```
+The height of buildings in Washington is limited by the Height of Buildings Act.  	Tallest residential building in Washington, D.C. Tallest building completed in the city in the 2000s has 14 floors
+
+```{r}
+#write.csv(data,'../data/pre_data.csv')
+```
+
+##Encode
+
+```{r}
+data$AC <- factor(data$AC,level=c('Y','N'), label=c(1,0))
+
+
+
+
+data$NATIONALGRID <- as.numeric(data$NATIONALGRID)
+data$ASSESSMENT_NBHD <- as.factor(data$ASSESSMENT_NBHD)
+data$STYLE <- as.numeric(data$STYLE)
+
+
+```
+sample
+\section{preprocessing}
+sample
+
+\subsection{missing data}
+sample
+\subsection{outliers}
+sample
+ 
+\section{Smoothing methods}                  
+
+The main purpose of using the smoothing method is applying the spline and local regression rule into high dimensional data analyst. In this part, all the parameters automatically selected by s() (low rank thin plate(smoothing) spline), te() (tensor product smoothing spline) and ti()(interaction). 
+
+\subsection{data preprocessing and modification}                 
+
+Smoothing method is a specific kind of linear(quadratic) method thus its data has more conditions than random-forest method and boosting method. Therefore it is necessary to preprocess the data for smoothing method first.         
+
+There are two kinds of data in the data set: numeric and categorical, and some variable can treat as numeric variable since it has significant priority between the levels.        
+
+Continuous numeric variables:                             
+BATHROOM,  ROOMS, REDRM, AYB, YR_RMDL, EYB, STORIES, STYLE, GBA, SALEDATE, FIREPLACES, LANDAREA, ZIPCODE, LATITUDE, LONGTITUDE, GENUSU_TRACT
+
+All the variables above are obvious continuous numeric variables without missing or NA data. Consider the large data size, make very variables into smoothing spline it help will increase the prediction accuracy.         
+
+numeric variables tranded from string:
+GRADE, CNDTN
+
+These two variables were saved as a string in the original dataset, but they actually present the quality of the house, which showed have priority for different factors. Thus we transfer these variables to numeric. 
+
+```{r}
+data$GRADE <- as.numeric(factor(data$GRADE,level=
+                                  c('Low Quality', 'Fair Quality', 'Average'
+                                    , 'Above Average', 'Good Quality', 'Very Good', 'Excellent',
+                                    'Superior', 'Exceptional-A', 'Exceptional-B', 'Exceptional-C',
+                                    'Exceptional-D', ordered= TRUE)))
+
+data$CNDTN <- as.numeric(factor(data$CNDTN,
+                                level=c('Poor', 'Fair', 'Average', 
+                                        'Good', 'Very Good','Excellent', ordered= TRUE)))
+
+```
+
+
+HF_BATHROOM: Since the data levels of half bathroom is only 8, and based on the pairs plot. 
+
+```{r}
+pairs(~data$HF_BATHRM + PRICE, data = data)
+```               
+
+Only 4 of the levels actually have most of the data, thus at first try to treat this variable as categorization. However, an error will be reported as 'Error in predict.gam(gam.object, test): 7 not in original fit', this error frequently occurs when we predict categorical variables.
+
+\large NOT_IN_ORIGINAL_FIT
+
+
+A frequently occur error when predicting categorical variables. The main reason occurs this error is categorical factor may not obvious in every fold. Thus case if the factor does not exist in 'train' fold but exist in test fold, the trained smooth model won't have an estimate parameter for that factor. This is the reason case the r crash. The way we deal with this kind of problem is replacing the rare showup factor' that not show up in every fold to some common factors. 
+
+However, for HF_BATHRM variable, the pair graph clearly shows that there should be a quadratic relationship between HF_BATHRM and PRICE, so treat HF_BATHRM as a numeric variable which has a quadratic relationship.
+
+
+Categorical variables:           
+AC, STRUCT, KITCKENS, USECODE, GENSUS_TRACT,WARD,QUADRANT,ASSESSMENT_NBHD
+
+All the Categorical variables above do not have missing data or NA, and all of their factors exist in every fold.       
+
+
+
+Heat: it is an obvious categorical variable, but NOT_IN_ORIGINAL_FIT error exists, do the following transfer to avoid it.         
+```{r}
+data$HEAT <- as.character(data$HEAT)
+data$HEAT[data$HEAT=='Air-oil'|
+                data$HEAT=='Electric Rad'|
+                 data$HEAT=='Evp Cool'|
+                 data$HEAT=='Gravity Furnac'|
+                 data$HEAT=='Ind Unit'|
+                 data$HEAT=='No Data'|
+                 data$HEAT=='Wall Furnace'
+                 ] <- sample(data$HEAT[data$HEAT!='Air-oil'& data$HEAT=='Electric Rad' 
+                                       & data$HEAT!='Evp Cool'&
+                                         data$HEAT!='Gravity Furnac'&
+                                         data$HEAT!='Ind Unit'&
+                                         data$HEAT!='No Data'&
+                                         data$HEAT!='Wall Furnace'
+                                       ],size = 8)
+data$HEAT<-as.factor(data$HEAT)
+```                      
+
+
+Where we replace the rare obvious data as simple from other data, random drawn exist here, may case every estimate lead to slight different k-cross-validation!
+
+And use a similar idea to preprocessing EXTWALL/ROOF/INTWALL
+
+```{r}
+#EXTWALL
+data$EXTWALL[data$EXTWALL == 'Adobe'| data$EXTWALL == 'Default'| data$EXTWALL == 'Plywood' ] <- 
+  sample((data$EXTWALL[data$EXTWALL != 
+                         'Adobe'& data$EXTWALL != 'Default'& data$EXTWALL != 'Plywood' ]),size = 8)
+data$EXTWALL<-as.factor(data$EXTWALL)
+
+# QUARANT
+data$QUADRANT[data$QUADRANT == ''] <- sample(data$QUADRANT[data$QUADRANT != ''],size = 65)
+
+#INITWALL
+data$INTWALL[data$INTWALL == 'Vinyl Comp'] <- 'Carpet'
+```                      
+
+Since there are too many missing data, we avoid estimate ASSESSMENT_SUBNBHD and CENUSU_BLOOK.          
+FULLADDRESS & NATIONALGRID has too many observations that cannot treat as categorical, but they are also meanless as numerical, so drop them out of estimate.           
+
+\subsection{estimate single variable}    
+
+Firstly build a linear regression model for all of the numeric variables as a smooth spline. If the variable is essential in a linear model(variable has less p-value), it also means it will be valuable in the prediction model.      
+```{r,echo=FALSE}
+t1 <- gam(PRICE~ s(BATHRM) + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(STORIES)+s
+         (STYLE) + s(FIREPLACES) + s(LANDAREA) + s(ZIPCODE) + s(LATITUDE) + s(LONGITUDE) + 
+           s(CENSUS_TRACT) + GRADE + CNDTN, data=data)
+summary(t1)
+```          
+By the p-value of summary, Stories and style have significant larger p-value than others, so probably we have to drop these two variables from the model.    
+
+Do the same for categorical variables.     
+
+```{r,echo=FALSE}
+t2 <- gam(PRICE~ s(BATHRM) + s(ROOMS) + s(BEDRM) + HEAT + EXTWALL+ROOF+INTWALL + AC + STRUCT + KITCHENS + USECODE + ASSESSMENT_NBHD + WARD + QUADRANT , data=data)
+#summary(t2, maxsum = 1)
+
+knitr::include_graphics("Visualization/smooth_t2.png")
+```  
+
+By the definition of the categorical estimate, r treat every factor as an independent variable, but in our prediction model later we can not only a part of the categorical variable. Since most of the categorical variables in summary(t2) printed above, their factors' p-values are pretty different from each other. We can not decide which variables we want.               
+
+
+It will be helpful to go straight to build the prediction medal and calculate the k-cross-validation.        
+Firstly, build the smoothing method prediction model only with numeric variables.         
+
+```{r,include = FALSE}
+
+# year rebuild
+data$SALEYEAR <- as.numeric(substr(data$SALEDATE,0,4))
+data$SALEMONTH <- as.numeric(substr(data$SALEDATE,6,7))
+data$SALEDATE <- as.numeric(data$SALEDATE)
+
+RMLSE_Score <- function(real,pred, take_log = TRUE){
+  if (take_log){
+    print(sqrt(1/length(real)* sum( (log(real) -log(pred))^2 ,na.rm=TRUE )))
+  }else{
+    print(sqrt(1/length(real)* sum( (real -pred)^2 ,na.rm=TRUE )))
+  }
+  
+}
+```
+
+
+```{r,echo = FALSE}
+
+
+# xg_at1 <- function(fold_num){
+#   train<-data[data$fold !=fold_num,]
+#   train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   
+# 
+# 
+#   train$PRICE = log(train$PRICE)
+# 
+#     gam.object<- gam(PRICE~ s(BATHRM) + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(STORIES)+s
+#          (STYLE) + s(FIREPLACES) + s(LANDAREA) + s(ZIPCODE) + s(LATITUDE) + s(LONGITUDE) + s(CENSUS_TRACT) + GRADE + CNDTN, data=train)
+#   
+#   
+#   test<-data[data$fold ==fold_num,]
+#   
+#   test_price <- log(test$PRICE)
+#   
+#   
+#   test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   
+#   predict_price<-predict(gam.object,test)
+#   
+#   return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+# }
+
+#at1_1 <-xg_at1(1)
+#at1_2 <-xg_at1(2)
+#at1_3 <-xg_at1(3)
+#at1_4 <-xg_at1(4)
+#at1_5 <-xg_at1(5)
+
+#total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+#RMLSE_Score(total$test_price,total$predict_price, FALSE)
+
+print(0.431072)
+```
+
+Then basing on the k-cross-validation got here, plug in every categoricals to the medal and calculate the k-cross-validation out. If the k-cross-validation increase, delete the categorical variable, otherwise keep it in the model. 
+
+
+```{r,echo=FALSE}
+
+
+# xg_at2 <- function(fold_num){
+#   train<-data[data$fold !=fold_num,]
+#   train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+# 
+#   train$PRICE = log(train$PRICE)
+# 
+#     gam.object<- gam(PRICE~ s(BATHRM)+ HF_BATHRM + I(HF_BATHRM^2) + AC + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(SALEDATE) + s(GBA) + CNDTN  + KITCHENS + s(LANDAREA) + s(FIREPLACES) + s(ZIPCODE) + CENSUS_TRACT + ASSESSMENT_NBHD + STRUCT + GRADE  + WARD + QUADRANT + s(LATITUDE), data=train)
+# 
+#   
+#   test<-data[data$fold ==fold_num,]
+#   
+#   test_price <- log(test$PRICE)
+#   
+#   
+#   test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   
+#   predict_price<-predict(gam.object,test)
+#   
+#   return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+# }
+
+#at1_1 <-xg_at2(1)
+#at1_2 <-xg_at2(2)
+#at1_3 <-xg_at2(3)
+#at1_4 <-xg_at2(4)
+#at1_5 <-xg_at2(5)
+
+#total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+#RMLSE_Score(total$test_price,total$predict_price, FALSE)
+
+print(0.2140155)
+```             
+
+At this step the mode contains s(BATHRM)+ HF_BATHRM + I(HF_BATHRM^2) + AC + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(SALEDATE) + s(GBA) + CNDTN  + KITCHENS + s(LANDAREA) + s(FIREPLACES) + s(ZIPCODE) + CENSUS_TRACT + ASSESSMENT_NBHD + STRUCT + GRADE  + WARD + QUADRANT.    
+A intersting fact is some factors of EXTWALL,INTWALL,ROOF has e^-16 p-value but these 3 variables still got kicked out the model becuase they reduce the estimate accuracy proved by k-cross-validation.        
+
+
+\subsection{quadratic, correlation and interaction}  
+
+Since the quadratic will obvious between the PRICE and variable, the correlation will visible between variables themselves. A pair of the graph will be helpful to find these relationships.           
+
+Since by the actual meaning of latitude & longitude, plot them into the interaction in pairs graph.      
+
+
+```{r}
+
+#pairs(~ SALEDATE + ZIPCODE + CENSUS_TRACT + LATITUDE + LONGITUDE + LANDAREA + PRICE, data = data)
+# to save time, plot out the picture once and save it 
+knitr::include_graphics("Visualization/smooth_pair_1.png")
+
+#pairs(~ BATHRM+ HF_BATHRM + I(HF_BATHRM^2) + AC + ROOMS + BEDRM+ AYB  + YR_RMDL+EYB + PRICE, data = data)
+# to save time, plot the picture once and save it
+knitr::include_graphics("Visualization/smooth_pair_2.png")
+```
+
+From the pair graph above, it is showing that there could be a correlation between SALEDATE & ZIPCODE, SALE DATE & CENSUS_TRACT, LANDAREA & LONGITUDE, and zipcode  & (latitude & longitude).
+
+
+Modify them into the prediction model.       
+```{r,echo=FALSE}
+#foul_num <- 1
+# #xg_at1 <- function(fold_num){
+#   train<-data[data$fold !=fold_num,]
+#   train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   train$PRICE = log(train$PRICE)
+#     gam.object <- gam(PRICE~ s(BATHRM)+ HF_BATHRM + I(HF_BATHRM^2) + AC + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(SALEDATE) + s(GBA) + CNDTN  + KITCHENS + s(LANDAREA) + te(LANDAREA, LONGITUDE,by =CNDTN)+ s(FIREPLACES) + s(ZIPCODE) + te(SALEDATE, ZIPCODE)+ te(SALEDATE, CENSUS_TRACT) + te(ZIPCODE,LATITUDE,LONGITUDE) + CENSUS_TRACT + ASSESSMENT_NBHD + s(LATITUDE)
+#                     + STRUCT #0.1949005
+#                     + GRADE
+#                     + WARD # 0.1945048
+#                     + QUADRANT #0.1944545 #[1] 0.1915153
+#                      , data=train)
+#   test<-data[data$fold ==fold_num,]
+# 
+#   test_price <- log(test$PRICE)
+# 
+# 
+#   test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+# 
+#   predict_price<-predict(gam.object,test)
+#   return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+# }
+
+#at1_1 <-xg_at1(1)
+
+#at1_2 <-xg_at1(2)
+#at1_3 <-xg_at1(3)
+#at1_4 <-xg_at1(4)
+#at1_5 <-xg_at1(5)
+
+#total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+#RMLSE_Score(total$test_price,total$predict_price, FALSE)
+
+print(0.1911396)
+```                 
+
+After output all of these k-cross-validations, it is clearly all of the interaction estimate improve the prediction. 
+
+Furthermore, from the pairs graph, it seems like ROOMS, BEDRM and LATITUDE have a quadratic relationship with PRICE. 
+Modify the inner product of ROOM^2, BEDRM^2, and LATITUDE^2 into the model. And print out the resullts.                               
+
+```{r,echo=FALSE}
+#foul_num <- 1
+# xg_at1 <- function(fold_num){
+#   train<-data[data$fold !=fold_num,]
+#   train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   train$PRICE = log(train$PRICE)
+#     gam.object <- gam(PRICE~ s(BATHRM)+ HF_BATHRM + I(HF_BATHRM^2) + AC + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(SALEDATE) + s(GBA) + CNDTN  + KITCHENS + s(LANDAREA) + te(LANDAREA, LONGITUDE,by =CNDTN)+ s(FIREPLACES) + s(ZIPCODE) + te(SALEDATE, ZIPCODE)+ te(SALEDATE, CENSUS_TRACT) + te(ZIPCODE,LATITUDE,LONGITUDE) + CENSUS_TRACT + ASSESSMENT_NBHD + s(LATITUDE)
+#                     + STRUCT #0.1949005
+#                     + GRADE 
+#                     + WARD # 0.1945048
+#                     + QUADRANT #0.1944545 #[1] 0.1915153
+#                     + I(ROOMS^2)
+#                      , data=train)
+#   test<-data[data$fold ==fold_num,]
+#   test_price <- log(test$PRICE)
+#   test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   predict_price<-predict(gam.object,test)
+#   return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+# }
+
+# xg_at2<- function(fold_num){
+#   train<-data[data$fold !=fold_num,]
+#   train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   train$PRICE = log(train$PRICE)
+#     gam.object <- gam(PRICE~ s(BATHRM)+ HF_BATHRM + I(HF_BATHRM^2) + AC + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(SALEDATE) + s(GBA) + CNDTN  + KITCHENS + s(LANDAREA) + te(LANDAREA, LONGITUDE,by =CNDTN)+ s(FIREPLACES) + s(ZIPCODE) + te(SALEDATE, ZIPCODE)+ te(SALEDATE, CENSUS_TRACT) + te(ZIPCODE,LATITUDE,LONGITUDE) + CENSUS_TRACT + ASSESSMENT_NBHD + s(LATITUDE)
+#                     + STRUCT #0.1949005
+#                     + GRADE 
+#                     + WARD # 0.1945048
+#                     + QUADRANT #0.1944545 #[1] 0.1915153
+#                     + I(BEDRM^2)
+#                      , data=train)
+#   test<-data[data$fold ==fold_num,]
+#   test_price <- log(test$PRICE)
+#   test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   predict_price<-predict(gam.object,test)
+#   return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+# }
+
+#xg_at3 <- function(fold_num){
+#   train<-data[data$fold !=fold_num,]
+#   train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   train$PRICE = log(train$PRICE)
+#     gam.object <- gam(PRICE~ s(BATHRM)+ HF_BATHRM + I(HF_BATHRM^2) + AC + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(SALEDATE) + s(GBA) + CNDTN  + KITCHENS + s(LANDAREA) + te(LANDAREA, LONGITUDE,by =CNDTN)+ s(FIREPLACES) + s(ZIPCODE) + te(SALEDATE, ZIPCODE)+ te(SALEDATE, CENSUS_TRACT) + te(ZIPCODE,LATITUDE,LONGITUDE) + CENSUS_TRACT + ASSESSMENT_NBHD + s(LATITUDE)
+#                     + STRUCT #0.1949005
+#                     + GRADE 
+#                     + WARD # 0.1945048
+#                     + QUADRANT #0.1944545 #[1] 0.1915153
+#                     + I(LATITUDE^2)
+#                      , data=train)
+#   test<-data[data$fold ==fold_num,]
+#   test_price <- log(test$PRICE)
+#   test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   predict_price<-predict(gam.object,test)
+#   return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+# }
+
+# at1_1 <-xg_at1(1)
+# at1_2 <-xg_at1(2)
+# at1_3 <-xg_at1(3)
+# at1_4 <-xg_at1(4)
+# at1_5 <-xg_at1(5)
+# total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+# RMLSE_Score(total$test_price,total$predict_price, FALSE)
+print(0.1911354)
+
+#at1_1 <-xg_at2(1)
+#at1_2 <-xg_at2(2)
+#at1_3 <-xg_at2(3)
+#at1_4 <-xg_at2(4)
+#at1_5 <-xg_at2(5)
+#total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+#RMLSE_Score(total$test_price,total$predict_price, FALSE)
+print(0.1910852)
+
+#at1_1 <-xg_at3(1)
+#at1_2 <-xg_at3(2)
+#at1_3 <-xg_at3(3)
+#at1_4 <-xg_at3(4)
+#at1_5 <-xg_at3(5)
+#total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+#RMLSE_Score(total$test_price,total$predict_price, FALSE)
+print(0.1912356)
+``` 
+Since the second result(BEDRM^2's ouput) decrease the k-cross-validation, the forecast from pair graph is correct, BEDRM does have a quadratic relationship with PRICE.      
+
+
+The final smoothing method prediction's k-cross-validation is:             
+
+```{r,echo=FALSE}
+# xg_at1 <- function(fold_num){
+#   train<-data[data$fold !=fold_num,]
+#   train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   train$PRICE = log(train$PRICE)
+#     gam.object <- gam(PRICE~ s(BATHRM)+ HF_BATHRM + I(HF_BATHRM^2) + AC + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(SALEDATE) + s(GBA) + CNDTN  + KITCHENS + s(LANDAREA) + te(LANDAREA, LONGITUDE,by =CNDTN)+ s(FIREPLACES) + s(ZIPCODE) + te(SALEDATE, ZIPCODE)+ te(SALEDATE, CENSUS_TRACT) + te(ZIPCODE,LATITUDE,LONGITUDE) + CENSUS_TRACT + ASSESSMENT_NBHD + s(LATITUDE)
+#                     + STRUCT 
+#                     + GRADE 
+#                     + WARD
+#                     + QUADRANT
+#                     + I(BEDRM^2)
+#                     , data=train)
+#   
+#   test<-data[data$fold ==fold_num,]
+#   
+#   test_price <- log(test$PRICE)
+#   
+#   
+#   test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS))
+#   
+#   predict_price<-predict(gam.object,test)
+#   return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+# }
+# at1_1 <-xg_at1(1)
+# at1_2 <-xg_at1(2)
+# at1_3 <-xg_at1(3)
+# at1_4 <-xg_at1(4)
+# at1_5 <-xg_at1(5)
+# 
+# total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+# RMLSE_Score(total$test_price,total$predict_price, FALSE)
+
+print(0.1910852)
+```                   
+
+\subsection{efficiency against accuracy}
+
+Change default bs="tp" to bs="cr" in spline fuction s() can significantly increase the efficiency, but it will decrease the accuracy at the same itme. Thus in order to get the most accurate result, all of the s() in this report use bs = "tp". 
+
+Since all of the interactions of quantities measured in differentunits units in this project, we use te(), Tensor produc fuction rather than plug 2 variables in s() function. This also help a lot on improve accuracy.          
+
+
+\section{Random  Forests}
+sample
+
+\section{Boosting}
+sample
+
+\section{Aditional methods}
+sample
+
+\section{Statistical  Conclusions}
+sample
+
+\section{Future work}
+sample
+
+\section{Contribution}
+sample
+
+\section{Appendix}
+sample

@@ -1,0 +1,157 @@
+---
+output:
+  pdf_document:
+    number_sections: yes
+  html_document:
+    df_print: paged
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 1px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+\begin{titlepage}
+
+\center
+\textsc{\LARGE University of Waterloo}\\[5cm]
+{ \huge \bfseries STAT 444}\\[4cm]
+     \textsc{\Large STAT 444 Spring 2019}\\[3cm]
+     
+\emph{Group 91:}\\[0.5cm]
+Gengyao \textsc{Yuan}(20613017)\\[0.5cm]
+Haohan  \textsc{Li}(20610397)
+
+
+\end{titlepage}
+
+\tableofcontents
+
+\newpage
+
+
+sample
+\section{Executive summary:}
+sample
+\newpage
+sample
+\newline
+sample
+\section{Itroduction:}
+
+sample
+\section{Data}
+sample
+\section{preprocessing}
+sample
+
+\subsection{missing data}
+sample
+\subsection{outliers}
+sample
+
+\section{Smoothing methods}
+sample
+
+\section{Random  Forests}
+
+Random Forest is a supervised ensemble learning method for classification and regression. The "Forest" is  an ensemble of **Decision Trees** and usually trained with the **bagging** method.
+
+In our case, we use package **ranger** which provides shorter running time than "randomforest" package
+
+\subsection{Parameter Tuning}
+Note that our final model is shown as below.
+
+ranger(formula, data = train,importance = "permutation",mtry = 6,num.trees = 750,min.node.size=2,max.depth = 25,seed=12345)
+               
+There are three important hyperparameter we can see here: **mtry**, **num.trees**(learning rate), **max.depth**
+In this section, we assue all of the folds has the smae distribution. So we use fold 1 to tune the hyper-parameter
+to save some running time
+
+\subsubsection{mtry}
+
+**mtry** stands for number of variables to possibly split at in each node. 
+
+
+By fixing other hyperparameters, we can see the different testing error among different mtry. mtry = 8 and mtry = 6 has really similar result and they are better than other values. In our case, we choose mtry = 6
+
+![Testing error on Fold 1 data with differnt mtry](Visualization/RandomForestMtry.jpg)
+\subsubsection{num.trees}
+
+**num.trees** stands for number of trees, usaually the more the merrier. However, the large number of trees could result in slow learning speed.
+
+Based on our hard ware, we choose num.trees=750
+
+
+\subsubsection{Max Depth}
+
+![Testing error on Fold 1 data with max depth](Visualization/RandomForestDepth.jpg)
+
+From the plot above, we actually can see random forest has a really strong ability to choose the depth, even if we set a large maximum depth, it won't overfit.
+
+Therefore, based on above and running time, we choose max.depth = 25
+
+\subsection{Variable Selection}
+
+RFCV function recommends to use more than 15 varaiables. Also, based on importance from other methods, such as boosting, we selected variables that result in relativly high importance.
+
+                    YR_RMDL                    SALEDATE                         GBA                      STRUCT 
+                0.011928558                 0.231533859                 0.044109965                 0.003285106 
+                      GRADE                       CNDTN                  FIREPLACES                     USECODE 
+                0.055659510                 0.011170952                 0.006573469                 0.001577127 
+                   LANDAREA                     ZIPCODE                NATIONALGRID                    LATITUDE 
+                0.010948689                 0.046357677                 0.060345086                 0.035985507 
+                  LONGITUDE          ASSESSMENT_SUBNBHD                CENSUS_TRACT                        WARD 
+                0.116367378                 0.012472276                 0.040281566                 0.080817121 
+                   QUADRANT            CENSUS_BLOCK_NUM                    SALEYEAR                     SalevYB 
+                0.003818272                 0.047966327                 0.140848839                 0.017246916 
+                   BATHTOTAL ASSESSMENT_SUBNBHD_Modified 
+                 0.019042955                 0.005908665 
+
+
+\section{Boosting}
+sample 
+
+\section{Aditional methods}
+sample
+
+\section{Statistical  Conclusions}
+sample
+
+\section{Future work}
+sample
+
+\section{Contribution}
+sample
+
+\section{Appendix}
+sample
+
+

@@ -1,0 +1,301 @@
+---
+output:
+  pdf_document: 
+    number_sections: true
+---
+<style type='text/css'>
+
+body{ /* Normal  */
+      font-size: 1px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: 'Times New Roman', Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+\begin{titlepage}
+
+\center
+\textsc{\LARGE University of Waterloo}\\[5cm]
+{ \huge \bfseries STAT 444}\\[4cm]
+     \textsc{\Large STAT 444 Spring 2019}\\[3cm]
+     
+\emph{Group Gengyao\_Yuan:}\\[0.5cm]
+Gengyao \textsc{Yuan}(20613017)\\[0.5cm]
+Haohan  \textsc{Li}(20610397)
+
+
+\end{titlepage}
+
+\tableofcontents
+
+\newpage
+```{r setup, include=FALSE}
+data = read.csv('data/housing_price.csv')
+library('VIM') # Missing value
+#library(gbm)
+library(mgcv)
+```
+
+\section{Executive summary:}
+sample
+
+\newpage
+
+
+
+
+sample
+\newline
+sample
+\section{Itroduction:}
+
+sample
+\section{Data}
+
+```{r}
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+data$KITCHENS[is.na(data$KITCHENS)] <- getmode(data$KITCHENS[!is.na(data$KITCHENS)])
+
+
+
+med_diff_built_remodel <-floor(median(data$YR_RMDL[!is.na(data$YR_RMDL)&!is.na(data$AYB)]- 
+                                data$AYB[!is.na(data$YR_RMDL)&!is.na(data$AYB)] ))
+
+
+# Fill AYB and YR_RMDL
+data$YR_RMDL[is.na(data$YR_RMDL)&!is.na(data$AYB)] <-data$AYB[is.na(data$YR_RMDL)&!is.na(data$AYB)]
+
+
+#Missing Both
+missing_both <- is.na(data$YR_RMDL)&is.na(data$AYB)
+
+data$AYB[missing_both]<-floor(median(data$AYB[!is.na(data$AYB)]))
+
+data$YR_RMDL[missing_both]<-data$AYB[missing_both]- med_diff_built_remodel
+
+
+missing_built_have_remodel <- (!is.na(data$YR_RMDL)&is.na(data$AYB))
+data$AYB[missing_built_have_remodel] <- data$YR_RMDL[missing_built_have_remodel]-med_diff_built_remodel
+
+data$STORIES[is.na(data$STORIES)]<-floor(median(data$STORIES[!is.na(data$STORIES)]))
+```
+
+
+##Outliers / Extreme value
+
+By eyeball the data, we can see there is several outliers
+```{r}
+data[data$YR_RMDL==20,]
+data$YR_RMDL[data$YR_RMDL==20]=data$AYB[data$YR_RMDL==20]+med_diff_built_remodel
+data$AC[data$AC ==0] <- getmode(data$AC[data$AC !=0])
+```
+
+```{r}
+data$STORIES[data$STORIES>=14] <- floor(median(data$STORIES[data$STORIES<14]))
+```
+The height of buildings in Washington is limited by the Height of Buildings Act.  	Tallest residential building in Washington, D.C. Tallest building completed in the city in the 2000s has 14 floors
+
+```{r}
+#write.csv(data,'../data/pre_data.csv')
+```
+
+##Encode
+
+```{r}
+data$AC <- factor(data$AC,level=c('Y','N'), label=c(1,0))
+
+
+
+
+data$NATIONALGRID <- as.numeric(data$NATIONALGRID)
+data$ASSESSMENT_NBHD <- as.factor(data$ASSESSMENT_NBHD)
+data$STYLE <- as.numeric(data$STYLE)
+
+
+```
+sample
+\section{preprocessing}
+sample
+
+\subsection{missing data}
+sample
+\subsection{outliers}
+sample
+ 
+\section{Smoothing methods}                  
+
+The main purpose of using the smoothing method is applying the spline and local regression rule into high dimensional data analyst. In this part, all the parameters automatically selected by s() (low rank thin plate(smoothing) spline), te() (tensor product smoothing spline) and ti()(interaction). 
+
+\subsection{data preprocessing and modification}               
+
+Smoothing method is a specific kind of linear(quadritic) method thus its data has more conditions than random-forest method and boosting method. Therefore it is necessary to preprocess the data for smoothing method first.         
+
+There are two kinds of data in the data set: numeric and categorical, and some variable can treat as numeric variable since it has significant priority between the levels.        
+
+Countinus numeric variables:                             
+BATHROOM,  ROOMS, REDRM, AYB, YR_RMDL, EYB, STORIES, STYLE, GBA, SALEDATE, FIREPLACES, LANDAREA, ZIPCODE, LATITUDE, LONGTITUDE, GENUSU_TRACT
+
+All the variables above are obviouse countinus numeric variables without missing or NA data. Consider the large data size, make very variables into smoothing spline it help will increase the prediction accurace.         
+
+numeric variables tranded from string:
+GRADE, CNDTN
+
+These two variables were saved as string in original dataset, but they actually present the quality of house, which showed have proorty for different factors. Thus we transfer these variables to numeric.   
+
+```{r}
+data$GRADE <- as.numeric(factor(data$GRADE,level=c('Low Quality', 'Fair Quality', 'Average', 'Above Average', 'Good Quality', 'Very Good', 'Excellent', 'Superior', 'Exceptional-A', 'Exceptional-B', 'Exceptional-C', 'Exceptional-D', ordered= TRUE)))
+
+data$CNDTN <- as.numeric(factor(data$CNDTN,level=c('Poor', 'Fair', 'Average', 'Good', 'Very Good','Excellent', ordered= TRUE)))
+
+```
+
+
+HF_BATHROOM: Since the data levels of half bath room is only 8, and basing on the pairs plot. 
+
+```{r}
+pairs(~data$HF_BATHRM + PRICE, data = data)
+```
+Only 4 of the levels actually have most of the data, thus at first try to treat this variable as categorithon. HOWever, a error will be reported as 'Error in predict.gam(gam.object, test) : 7 not in original fit', this error is frequently occur when we predict categorical variables.
+
+\large NOT_IN_ORIGINAL_FIT
+
+A frequently occur error when predict categorical variables. The main reason occur this error is categorical factor may not obvisu in every fold. Thus case if the fatcor not exist in 'train' fold but exist in test fold, the trained smooth model won't have a estimate parameter for that factor. This is the reason case the r carsh. The way we deal with this kind of problem is replacethe 'rare show up factor' thet not show up in every fold to some comom factors. 
+
+Howevery, for HF_BATHRM variable, the pair graph clearly shows that there should be a quadratic relationship between HF_BATHRM and PRICE, so treat HF_BATHRM as a numeric variable who has quadratic relationship.
+
+
+Categorical variables:           
+AC, STRUCT, KITCKENS, USECODE, GENsus_TRACT,WARD,QUADRANT,ASSESSMENT_NBHD
+
+All the Categorical variables above do not have missing data or NA, and all of their factors exist in every fold.       
+
+
+
+Heat: it is a obvious categoricall varible, but NOT_IN_ORIGINAL_FIT error exsit, do following transfer to avoid it.         
+```{r}
+data$HEAT <- as.character(data$HEAT)
+data$HEAT[data$HEAT=='Air-oil'|
+                data$HEAT=='Electric Rad'|
+                 data$HEAT=='Evp Cool'|
+                 data$HEAT=='Gravity Furnac'|
+                 data$HEAT=='Ind Unit'|
+                 data$HEAT=='No Data'|
+                 data$HEAT=='Wall Furnace'
+                 ] <- sample(data$HEAT[data$HEAT!='Air-oil'& data$HEAT=='Electric Rad' 
+                                       & data$HEAT!='Evp Cool'&
+                                         data$HEAT!='Gravity Furnac'&
+                                         data$HEAT!='Ind Unit'&
+                                         data$HEAT!='No Data'&
+                                         data$HEAT!='Wall Furnace'
+                                       ],size = 8)
+data$HEAT<-as.factor(data$HEAT)
+```                      
+
+
+Where we replace the rare obvisou data as smple from other data, random drawn exsit here, maycase every estimate lead to slight different k-variances!
+
+And use the similar idea to preprocessing EXTWALL/ROOF/INTWALL
+
+```{r}
+#EXTWALL
+data$EXTWALL[data$EXTWALL == 'Adobe'| data$EXTWALL == 'Default'| data$EXTWALL == 'Plywood' ] <- sample((data$EXTWALL[data$EXTWALL != 'Adobe'& data$EXTWALL != 'Default'& data$EXTWALL != 'Plywood' ]),size = 8)
+data$EXTWALL<-as.factor(data$EXTWALL)
+
+
+
+data$QUADRANT[data$QUADRANT == ''] <- sample(data$QUADRANT[data$QUADRANT != ''],size = 65)
+
+data$INTWALL[data$INTWALL == 'Vinyl Comp'] <- 'Carpet'
+```                      
+
+Since there are too many missing data, we avoid estimate ASSESSMENT_SUBNBHD and CENUSU_BLOOK.          
+FULLADDRESS & NATIONALGRID has too many ovsivations that can not treat as categorical, but they are also meanless as numerical, so drop them out of estimate.           
+
+\subsection{estimate single variable}    
+
+Firstly build a linear regrassion model for all of the numeric variables as smooth spline. If the variable is importanmt in linear model(variable has less p-value), also means it will be important in predition model.      
+```{r}
+t1 <- gam(PRICE~ s(BATHRM) + s(ROOMS) + s(BEDRM)+ s(AYB)  + s(YR_RMDL)+ s(EYB) + s(STORIES)+s
+         (STYLE) + s(FIREPLACES) + s(LANDAREA) + s(ZIPCODE) + s(LATITUDE) + s(LONGITUDE) + s(CENSUS_TRACT) + GRADE + CNDTN, data=data)
+summary(t1)
+
+```          
+By the p-value of summary, Stories and style has significant larger p-value than others, so propobaly we have to drop these two variables from model.    
+
+Do the same for categorical variables.         
+
+```{r,echo=FALSE}
+t1 <- gam(PRICE~ s(BATHRM) + s(ROOMS) + s(BEDRM) + HEAT + EXTWALL+ROOF+INTWALL + AC + STRUCT + KITCHENS + USECODE + ASSESSMENT_NBHD + WARD + QUADRANT , data=data)
+summary(t1)
+
+```  
+
+By the defination of categorical estimate, r treat every factors as an independent variable, but in our prediction model later we can not only a part of the categorical variable. Since for most of categorical variables their factors' p-values are pretty different from each orther. We can not decide witch variables we want.               
+
+
+```{r,include = FALSE}
+
+# year rebuild
+data$SALEYEAR <- as.numeric(substr(data$SALEDATE,0,4))
+data$SALEMONTH <- as.numeric(substr(data$SALEDATE,6,7))
+data$SALEDATE <- as.numeric(data$SALEDATE)
+
+RMLSE_Score <- function(real,pred, take_log = TRUE){
+  if (take_log){
+    print(sqrt(1/length(real)* sum( (log(real) -log(pred))^2 ,na.rm=TRUE )))
+  }else{
+    print(sqrt(1/length(real)* sum( (real -pred)^2 ,na.rm=TRUE )))
+  }
+  
+}
+```
+
+
+
+
+
+\section{Random  Forests}
+sample
+
+\section{Boosting}
+sample
+
+\section{Aditional methods}
+sample
+
+\section{Statistical  Conclusions}
+sample
+
+\section{Future work}
+sample
+
+\section{Contribution}
+sample
+
+\section{Appendix}
+sample

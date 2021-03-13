@@ -1,0 +1,102 @@
+---
+output:
+  pdf_document: 
+    number_sections: true
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 1px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+\begin{titlepage}
+
+\center
+\textsc{\LARGE University of Waterloo}\\[5cm]
+{ \huge \bfseries STAT 444}\\[4cm]
+     \textsc{\Large STAT 444 Spring 2019}\\[3cm]
+     
+\emph{Group 91:}\\[0.5cm]
+Gengyao \textsc{Yuan}(20613017)\\[0.5cm]
+Haohan  \textsc{Li}(20610397)
+
+
+\end{titlepage}
+
+\tableofcontents
+
+\newpage
+```{r setup,include=FALSE}
+#library())
+```
+
+sample
+\section{Executive summary:}
+sample
+\newpage
+sample
+\newline
+sample
+\section{Itroduction:}
+
+sample
+\section{Data}
+sample
+\section{preprocessing}
+sample
+
+\subsection{missing data}
+sample
+\subsection{outliers}
+sample
+
+\section{Smoothing methods}
+sample
+
+\section{Random  Forests}
+sample
+
+\section{Boosting}
+sample
+
+\section{Aditional methods}
+sample
+
+\section{Statistical  Conclusions}
+sample
+
+\section{Future work}
+sample
+
+\section{Contribution}
+sample
+
+\section{Appendix}
+sample

@@ -1,0 +1,196 @@
+---
+title: "Visualization"
+author: "Xavier"
+date: "April 8, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Install latest reticulate
+#library(devtools)
+#install_github("rstudio/reticulate")
+
+library(reticulate)
+#use_python('D:\\Anaconda\\python.exe')
+```
+# 1. Load data
+```{python}
+import pandas as pd
+#data = pd.read_csv('../data/housing_price.csv')
+#print(data.head(2))
+```
+
+
+
+
+```{r, echo=FALSE}
+library('ggplot2')# visualization
+library('ggthemes')
+library('scales')
+library('VIM') # Missing value
+library('dplyr')# data manipulation
+
+library('mice')#imputation
+```
+```{R}
+data <- read.csv('../data/housing_price.csv', header = TRUE)
+head(data)
+str(data)
+```
+#2. Initial Exploration
+```{r}
+summary(data)
+```
+
+
+```{r}
+str(data)
+```
+
+##Missing values
+```{r}
+aggr(data,prop = FALSE, combined = TRUE, sortVars=TRUE)
+```
+
+```{r}
+summary(data$STORIES)
+summary(data$YR_RMDL)
+summary(data$AYB)
+```
+
+As we could see from above, there are 39520 rows of data. For YR_RMDL column, there are 16351 missing values, 61 for AYB, 26 for stories and only 1 for KITCHENS
+
+For Kitchens, it is easy to decide. since most of this kind of property only have one kitchener, so we fill it will mode 1
+
+For YR_RMDL we fill with AYB since if it is missing value it is not remodeled
+```{r}
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+data$KITCHENS[is.na(data$KITCHENS)] <- getmode(data$KITCHENS[!is.na(data$KITCHENS)])
+
+
+
+med_diff_built_remodel <-floor(median(data$YR_RMDL[!is.na(data$YR_RMDL)&!is.na(data$AYB)]- 
+                                data$AYB[!is.na(data$YR_RMDL)&!is.na(data$AYB)] ))
+
+
+# Fill AYB and YR_RMDL
+data$YR_RMDL[is.na(data$YR_RMDL)&!is.na(data$AYB)] <-data$AYB[is.na(data$YR_RMDL)&!is.na(data$AYB)]
+
+
+#Missing Both
+missing_both <- is.na(data$YR_RMDL)&is.na(data$AYB)
+
+data$AYB[missing_both]<-floor(median(data$AYB[!is.na(data$AYB)]))
+
+data$YR_RMDL[missing_both]<-data$AYB[missing_both]- med_diff_built_remodel
+
+
+missing_built_have_remodel <- (!is.na(data$YR_RMDL)&is.na(data$AYB))
+data$AYB[missing_built_have_remodel] <- data$YR_RMDL[missing_built_have_remodel]-med_diff_built_remodel
+
+data$STORIES[is.na(data$STORIES)]<-floor(median(data$STORIES[!is.na(data$STORIES)]))
+```
+
+
+##Outliers / Extreme value
+
+By eyeball the data, we can see there is several outliers
+```{r}
+data[data$YR_RMDL==20,]
+data$YR_RMDL[data$YR_RMDL==20]=data$AYB[data$YR_RMDL==20]+med_diff_built_remodel
+data$AC[data$AC ==0] <- getmode(data$AC[data$AC !=0])
+```
+
+```{r}
+data$STORIES[data$STORIES>=14] <- floor(median(data$STORIES[data$STORIES<14]))
+```
+The height of buildings in Washington is limited by the Height of Buildings Act.  	Tallest residential building in Washington, D.C. Tallest building completed in the city in the 2000s has 14 floors
+
+```{r}
+#write.csv(data,'../data/pre_data.csv')
+```
+
+##Encode
+
+```{r}
+data$AC <- factor(data$AC,level=c('Y','N'), label=c(1,0))
+data$GRADE <- as.numeric(factor(data$GRADE,level=c(
+'Low Quality', 'Fair Quality', 'Average', 'Above Average', 'Good Quality', 'Very Good', 'Excellent', 'Superior', 'Exceptional-A', 'Exceptional-B', 'Exceptional-C', 'Exceptional-D', ordered= TRUE)))
+data$CNDTN <- as.numeric(factor(data$CNDTN,level=c('Poor', 'Fair', 'Average', 'Good', 'Very Good','Excellent', ordered= TRUE)))
+
+data$HEAT <- as.numeric(data$HEAT)
+data$SALEDATE <- as.numeric(data$SALEDATE)
+data$NATIONALGRID <- as.numeric(data$NATIONALGRID)
+data$ASSESSMENT_NBHD <- as.numeric(data$ASSESSMENT_NBHD)
+data$STYLE <- as.numeric(data$STYLE)
+data$STRUCT <- as.numeric(data$STRUCT)
+data$EXTWALL <- as.numeric(data$EXTWALL)
+data$INTWALL <- as.numeric(data$INTWALL)
+data$ROOF <- as.numeric(data$ROOF)
+data$WARD <- as.numeric(data$WARD)
+data$QUADRANT <- as.numeric(data$QUADRANT)
+
+```
+
+
+
+```{r}
+library(gbm)
+library(mgcv)
+
+RMLSE_Score <- function(real,pred, take_log = TRUE){
+  if (take_log){
+    print(sqrt(1/length(real)* sum( (log(real) -log(pred))^2 ,na.rm=TRUE )))
+  }else{
+    print(sqrt(1/length(real)* sum( (real -pred)^2 ,na.rm=TRUE )))
+  }
+  
+}
+
+xg_at1 <- function(fold_num){
+  train<-data[data$fold !=fold_num,]
+  train <- subset(train, select= - c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS,CENSUS_BLOCK))
+  train$PRICE = log(train$PRICE)
+  
+  #train$BATHRM <- train$BATHRM+train$HF_BATHRM/2
+  
+  #train$SALEDATE <- as.numeric(substr(train$SALEDATE,0,4))
+  
+    
+  
+  gam.object <- gam(PRICE~ s(BATHRM) + HF_BATHRM + s(ROOMS) + s(BEDRM)  + s(YR_RMDL)+ s(EYB) +  s(SALEDATE) + s(GBA) +s(GRADE)+ CNDTN  + KITCHENS + s(AYB)+ AC+s(YR_RMDL) + s(LANDAREA) + te(LANDAREA, LONGITUDE,by =CNDTN)+ s(FIREPLACES) + s(ZIPCODE) + te(SALEDATE, ZIPCODE)+ te(SALEDATE, CENSUS_TRACT) + te(ZIPCODE,LATITUDE,LONGITUDE) + s(CENSUS_TRACT), data=train)
+  
+  #rmgam.object <- gam(PRICE~  , data=train)
+  
+  test<-data[data$fold ==fold_num,]
+  
+  test_price <- log(test$PRICE)
+  
+  
+  test<-subset(test, select=-c(Id,fold, ASSESSMENT_SUBNBHD,FULLADDRESS, CENSUS_BLOCK))
+  
+  predict_price<-predict(gam.object,test)
+  
+  RMLSE_Score(test_price,predict_price, FALSE)
+  toc()
+  return (cbind(data[data$fold==fold_num,]$Id,predict_price,test_price))
+}
+
+system.time(at1_1 <-xg_at1(1))
+
+at1_2 <-xg_at1(2)
+at1_3 <-xg_at1(3)
+at1_4 <-xg_at1(4)
+at1_5 <-xg_at1(5)
+
+total<-data.frame(rbind(at1_1,at1_2,at1_3,at1_4,at1_5))
+RMLSE_Score(total$test_price,total$predict_price, FALSE)
+
+```
